@@ -23,4 +23,20 @@ exports.insertStartedAt = functions.https.onRequest((request, response) => {
         response.status(200).send(message);
     });
 });
+exports.diffDateStartedAt = functions.https.onRequest((request, response) => {
+    let db = admin.database();
+    db.ref('/chat').limitToFirst(2).on("value", function (snapshot) {
+        var value = null;
+        for (let key in snapshot.val()) {
+            value = snapshot.val()[key];
+        }
+        const now = Date.now() / 1000 | 0;
+        response.status(200).send({
+            timeDiff: now - value.createdAt,
+            isOnTime: now - value.createdAt < 15 * 60
+        });
+    }, function (errorObject) {
+        console.log("The read failed: " + errorObject.code);
+    });
+});
 //# sourceMappingURL=index.js.map
