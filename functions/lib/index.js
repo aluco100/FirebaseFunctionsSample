@@ -26,17 +26,59 @@ exports.insertStartedAt = functions.https.onRequest((request, response) => {
 exports.diffDateStartedAt = functions.https.onRequest((request, response) => {
     let db = admin.database();
     db.ref('/chat').limitToFirst(2).on("value", function (snapshot) {
-        var value = null;
-        for (let key in snapshot.val()) {
-            value = snapshot.val()[key];
-        }
+        const value = snapshot.val()[Object.keys(snapshot.val())[Object.keys(snapshot.val()).length - 1]];
         const now = Date.now() / 1000 | 0;
         response.status(200).send({
             timeDiff: now - value.createdAt,
-            isOnTime: now - value.createdAt < 15 * 60
+            isOnTime: now - value.createdAt < 15 * 60,
+            value: snapshot.val()
         });
     }, function (errorObject) {
         console.log("The read failed: " + errorObject.code);
+    });
+});
+// export const createChat = functions.database.ref('/chats/chat').onWrite(event => {
+//   return event.data.ref.set({
+//     created_at: Date.now() / 1000 | 0,
+//     started_at: null,
+//     finished_at: null
+//   });
+// });
+exports.startChat = functions.database.ref('/messages/chat').onWrite(event => {
+    console.log(event.data.val());
+    for (let key in event.data.val()) {
+        let message = event.data.val()[key];
+        if (message.role == "EXPERT") {
+            let db = admin.database();
+            db.ref("/chats/chat").on("value", snapshot => {
+                if (snapshot.val().started_at == null) {
+                    return db.ref("/chats/chat").update({
+                        started_at: Date.now() / 1000 | 0
+                    });
+                }
+            });
+            break;
+        }
+    }
+});
+exports.sendMessage = functions.database.ref('/messages/chat').onWrite(event => {
+    const last_key = Object.keys(event.data.val())[Object.keys(event.data.val()).length - 1];
+    let db = admin.database();
+    return db.ref("/messages/chat/" + last_key).update({
+        createdAt: Date.now() / 1000 | 0
+    });
+});
+exports.closeChat = functions.database.ref('/messages/chat').onWrite(event => {
+    let now = Date.now() / 1000 | 0;
+    let db = admin.database();
+    db.ref("/chats/chat").on("value", snapshot => {
+        let diff = now - snapshot.val().started_at;
+        if (diff >= 15 * 60 && snapshot.val().finished_at == null) {
+            db.ref("/chats/chat").update({
+                finished_at: now
+            });
+            return;
+        }
     });
 });
 //# sourceMappingURL=index.js.map
